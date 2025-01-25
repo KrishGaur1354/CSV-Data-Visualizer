@@ -29,7 +29,7 @@ terminal_style = {
 app.layout = dbc.Container([
     # Header
     dbc.Row([
-        dbc.Col(html.H1("CSV Data Visualizer - Unix/Linux Edition", style={
+        dbc.Col(html.H1("CSV Data Visualizer", style={
             'fontFamily': 'Courier New, monospace',
             'color': '#00ff00',
             'textShadow': '0 0 5px #00ff00'
