@@ -1,3 +1,4 @@
+# main.py
 import os
 import base64
 import io
@@ -5,9 +6,12 @@ import dash
 from dash import dcc, html, Input, Output, State, dash_table
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import dash_bootstrap_components as dbc
 from scipy import stats
+from database import init_db, add_comment, get_comments
+
+# Initialize the database
+init_db()
 
 # Initialize the Dash app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
@@ -25,7 +29,7 @@ terminal_style = {
 app.layout = dbc.Container([
     # Header
     dbc.Row([
-        dbc.Col(html.H1("CSV Data Visualizer", style={
+        dbc.Col(html.H1("CSV Data Visualizer - Unix/Linux Edition", style={
             'fontFamily': 'Courier New, monospace',
             'color': '#00ff00',
             'textShadow': '0 0 5px #00ff00'
@@ -150,6 +154,23 @@ app.layout = dbc.Container([
                 style={'backgroundColor': '#002200', 'color': '#00ff00'}
             ),
             html.Div(id='column-stats')
+        ])
+    ]),
+    # Comments Section
+    dbc.Row([
+        dbc.Col([
+            html.H3("Leave a Review", style={'color': '#00ff00'}),
+            dbc.Input(id='comment-name', placeholder="Your Name", style={'backgroundColor': '#002200', 'color': '#00ff00'}),
+            dbc.Textarea(id='comment-text', placeholder="Your Comment", style={'backgroundColor': '#002200', 'color': '#00ff00'}),
+            html.Button("Submit", id='submit-comment', style={
+                'backgroundColor': '#004400',
+                'color': '#00ff00',
+                'border': 'none',
+                'padding': '10px 20px',
+                'fontFamily': 'Courier New, monospace',
+                'textShadow': '0 0 5px #00ff00'
+            }),
+            html.Div(id='comments-display')
         ])
     ])
 ], style=terminal_style)
@@ -304,6 +325,30 @@ def display_column_stats(selected_column, data):
         'color': '#00ff00'
     })
 
+# Callback to handle comments
+@app.callback(
+    Output('comments-display', 'children'),
+    Input('submit-comment', 'n_clicks'),
+    State('comment-name', 'value'),
+    State('comment-text', 'value'),
+    prevent_initial_call=True
+)
+def add_and_display_comments(n_clicks, name, comment):
+    if not name or not comment:
+        return "Please enter both your name and comment."
+    add_comment(name, comment)
+    comments = get_comments()
+    comments_list = [
+        dbc.Card([
+            dbc.CardHeader(comment[0], style={'color': '#00ff00'}),
+            dbc.CardBody(comment[1], style={'color': '#00ff00'}),
+            dbc.CardFooter(comment[2], style={'color': '#00ff00'})
+        ], style={'backgroundColor': '#002200', 'marginBottom': '10px'})
+        for comment in comments
+    ]
+    return comments_list
+
 # Run the app
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    port = int(os.environ.get('PORT', 8050))  # Use Render's PORT environment variable
+    app.run_server(host='0.0.0.0', port=port, debug=False)
