@@ -1,4 +1,3 @@
-# main.py
 import os
 import base64
 import io
@@ -8,6 +7,11 @@ import pandas as pd
 import plotly.express as px
 import dash_bootstrap_components as dbc
 from scipy import stats
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression, LinearRegression
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.cluster import KMeans
+from sklearn.metrics import accuracy_score, mean_squared_error, silhouette_score
 from database import init_db, add_comment, get_comments
 
 # Initialize the database
@@ -15,14 +19,16 @@ init_db()
 
 # Initialize the Dash app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
-app.title = "CSV Data Visualizer - Unix/Linux Edition"
+app.title = "CSV Data Visualizer"
 
 # Custom Unix/Linux terminal style
+# Custom Unix/Linux terminal style with transparency
 terminal_style = {
     'backgroundColor': '#000000',
-    'color': '#00ff00',
+    'color': '#ffffff',
     'fontFamily': 'Courier New, monospace',
-    'padding': '20px'
+    'padding': '20px',
+    'minHeight': '100vh'  # Ensure the app takes full height
 }
 
 # Define the layout of the app
@@ -31,22 +37,23 @@ app.layout = dbc.Container([
     dbc.Row([
         dbc.Col(html.H1("CSV Data Visualizer", style={
             'fontFamily': 'Courier New, monospace',
-            'color': '#00ff00',
-            'textShadow': '0 0 5px #00ff00'
+            'color': '#ffffff',
+            'textShadow': '0 0 5px #ffffff'
         }), className="mb-4")
     ]),
     # Introduction
     dbc.Row([
         dbc.Col(html.Div([
-            html.H3("Welcome to the CSV Data Visualizer!", style={'color': '#00ff00'}),
-            html.P("This application allows you to upload a CSV file, visualize its data, and perform basic statistical analysis.", style={'color': '#00ff00'}),
-            html.P("How to use:", style={'color': '#00ff00'}),
+            html.H3("Welcome to the CSV Data Visualizer!", style={'color': '#ffffff'}),
+            html.P("This application allows you to upload a CSV file, visualize its data, perform basic statistical analysis, and run machine learning models.", style={'color': '#ffffff'}),
+            html.P("How to use:", style={'color': '#ffffff'}),
             html.Ul([
-                html.Li("Upload a CSV file using the 'Drag and Drop or Select a CSV File' button.", style={'color': '#00ff00'}),
-                html.Li("View the data in the table below.", style={'color': '#00ff00'}),
-                html.Li("Select a plot type from the dropdown to visualize the data.", style={'color': '#00ff00'}),
-                html.Li("Use the column selector to view statistics for a specific column.", style={'color': '#00ff00'}),
-                html.Li("Download the edited CSV file using the 'Download Edited CSV' button.", style={'color': '#00ff00'})
+                html.Li("Upload a CSV file using the 'Drag and Drop or Select a CSV File' button.", style={'color': '#ffffff'}),
+                html.Li("View the data in the table below.", style={'color': '#ffffff'}),
+                html.Li("Select a plot type from the dropdown to visualize the data.", style={'color': '#ffffff'}),
+                html.Li("Use the column selector to view statistics for a specific column.", style={'color': '#ffffff'}),
+                html.Li("Run machine learning models and view evaluation metrics.", style={'color': '#ffffff'}),
+                html.Li("Download the edited CSV file using the 'Download Edited CSV' button.", style={'color': '#ffffff'})
             ])
         ]))
     ]),
@@ -56,7 +63,7 @@ app.layout = dbc.Container([
             dcc.Upload(
                 id='upload-data',
                 children=html.Div(['Drag and Drop or ', html.A('Select a CSV File')], style={
-                    'color': '#00ff00',
+                    'color': '#000000',
                     'fontFamily': 'Courier New, monospace'
                 }),
                 style={
@@ -68,8 +75,8 @@ app.layout = dbc.Container([
                     'borderRadius': '5px',
                     'textAlign': 'center',
                     'margin': '10px',
-                    'backgroundColor': '#002200',
-                    'color': '#00ff00'
+                    'backgroundColor': 'rgba(255, 255, 255, 0.8)',  # Transparent white
+                    'color': '#000000'
                 },
                 multiple=False
             ),
@@ -88,11 +95,11 @@ app.layout = dbc.Container([
                 page_action="native",
                 page_current=0,
                 page_size=10,
-                style_table={'backgroundColor': '#002200', 'color': '#00ff00'},
-                style_header={'backgroundColor': '#004400', 'color': '#00ff00'},
-                style_cell={'backgroundColor': '#002200', 'color': '#00ff00'}
+                style_table={'backgroundColor': 'rgba(255, 255, 255, 0.8)', 'color': '#000000'},
+                style_header={'backgroundColor': 'rgba(0, 66, 0, 0.8)', 'color': '#ffffff'},
+                style_cell={'backgroundColor': 'rgba(255, 255, 255, 0.8)', 'color': '#000000'}
             )
-        ])
+        ], style={'overflowX': 'auto'})  # Allow horizontal scrolling on small screens
     ]),
     # Plot Type Selector
     dbc.Row([
@@ -112,7 +119,7 @@ app.layout = dbc.Container([
                     {'label': '3D Scatter Plot', 'value': '3d_scatter'}
                 ],
                 value='scatter',
-                style={'backgroundColor': '#002200', 'color': '#00ff00'}
+                style={'backgroundColor': 'rgba(255, 255, 255, 0.8)', 'color': '#000000'}
             )
         ])
     ]),
@@ -126,12 +133,12 @@ app.layout = dbc.Container([
     dbc.Row([
         dbc.Col([
             html.Button("Download Edited CSV", id="btn-download", style={
-                'backgroundColor': '#004400',
-                'color': '#00ff00',
+                'backgroundColor': 'rgba(255, 255, 255, 0.8)',
+                'color': '#000000',
                 'border': 'none',
                 'padding': '10px 20px',
                 'fontFamily': 'Courier New, monospace',
-                'textShadow': '0 0 5px #00ff00'
+                'textShadow': '0 0 5px #ffffff'
             }),
             dcc.Download(id="download-data")
         ])
@@ -139,41 +146,86 @@ app.layout = dbc.Container([
     # Statistical Summary
     dbc.Row([
         dbc.Col([
-            html.H3("Statistical Summary", style={'color': '#00ff00'}),
+            html.H3("Statistical Summary", style={'color': '#ffffff'}),
             html.Div(id='stat-summary')
         ])
     ]),
     # Column Statistics
     dbc.Row([
         dbc.Col([
-            html.H3("Column Statistics", style={'color': '#00ff00'}),
+            html.H3("Column Statistics", style={'color': '#ffffff'}),
             dcc.Dropdown(
                 id='column-selector',
                 options=[],
                 placeholder="Select a column",
-                style={'backgroundColor': '#002200', 'color': '#00ff00'}
+                style={'backgroundColor': 'rgba(255, 255, 255, 0.8)', 'color': '#000000'}
             ),
             html.Div(id='column-stats')
+        ])
+    ]),
+    # Machine Learning Section
+    dbc.Row([
+        dbc.Col([
+            html.H3("Machine Learning Tools", style={'color': '#ffffff'}),
+            dcc.Dropdown(
+                id='ml-task',
+                options=[
+                    {'label': 'Classification', 'value': 'classification'},
+                    {'label': 'Regression', 'value': 'regression'},
+                    {'label': 'Clustering', 'value': 'clustering'}
+                ],
+                placeholder="Select an ML task",
+                style={'backgroundColor': 'rgba(255, 255, 255, 0.8)', 'color': '#000000'}
+            ),
+            dcc.Dropdown(
+                id='ml-algorithm',
+                options=[],
+                placeholder="Select an algorithm",
+                style={'backgroundColor': 'rgba(255, 255, 255, 0.8)', 'color': '#000000'}
+            ),
+            html.Button("Run Model", id='run-model', style={
+                'backgroundColor': 'rgba(255, 255, 255, 0.8)',
+                'color': '#000000',
+                'border': 'none',
+                'padding': '10px 20px',
+                'fontFamily': 'Courier New, monospace',
+                'textShadow': '0 0 5px #ffffff'
+            }),
+            html.Div(id='ml-results')
         ])
     ]),
     # Comments Section
     dbc.Row([
         dbc.Col([
-            html.H3("Leave a Review", style={'color': '#00ff00'}),
-            dbc.Input(id='comment-name', placeholder="Your Name", style={'backgroundColor': '#002200', 'color': '#00ff00'}),
-            dbc.Textarea(id='comment-text', placeholder="Your Comment", style={'backgroundColor': '#002200', 'color': '#00ff00'}),
+            html.H3("Leave a Review", style={'color': '#ffffff'}),
+            dbc.Input(id='comment-name', placeholder="Your Name", style={'backgroundColor': 'rgba(255, 255, 255, 0.8)', 'color': '#000000'}),
+            dbc.Textarea(id='comment-text', placeholder="Your Comment", style={'backgroundColor': 'rgba(255, 255, 255, 0.8)', 'color': '#000000'}),
             html.Button("Submit", id='submit-comment', style={
-                'backgroundColor': '#004400',
-                'color': '#00ff00',
+                'backgroundColor': 'rgba(255, 255, 255, 0.8)',
+                'color': '#000000',
                 'border': 'none',
                 'padding': '10px 20px',
                 'fontFamily': 'Courier New, monospace',
-                'textShadow': '0 0 5px #00ff00'
+                'textShadow': '0 0 5px #ffffff'
             }),
             html.Div(id='comments-display')
         ])
+    ]),
+        # Footer
+    dbc.Row([
+        dbc.Col([
+            html.Div("Made by Krish Gaur", style={
+                'textAlign': 'center',
+                'color': '#ffffff',
+                'fontFamily': 'Courier New, monospace',
+                'marginTop': '20px',
+                'marginBottom': '10px',
+                'fontSize': '14px',
+                'opacity': '0.7'
+            })
+        ])
     ])
-], style=terminal_style)
+], fluid=True, style=terminal_style)
 
 # Callback to handle file upload, display data, and update table/graph
 @app.callback(
@@ -200,11 +252,11 @@ def update_output(contents, plot_type, filename):
 
     # Display the first few rows of the data
     data_preview = html.Div([
-        html.H5(f"File: {filename}", style={'color': '#00ff00'}),
-        html.H6("First 5 rows:", style={'color': '#00ff00'}),
+        html.H5(f"File: {filename}", style={'color': '#ffffff'}),
+        html.H6("First 5 rows:", style={'color': '#ffffff'}),
         dbc.Table.from_dataframe(df.head(), striped=True, bordered=True, hover=True, style={
-            'backgroundColor': '#002200',
-            'color': '#00ff00'
+            'backgroundColor': '#ffffff',
+            'color': '#ffffff'
         })
     ])
 
@@ -294,8 +346,8 @@ def display_stat_summary(data):
     df = pd.DataFrame(data)
     summary = df.describe().reset_index()
     return dbc.Table.from_dataframe(summary, striped=True, bordered=True, hover=True, style={
-        'backgroundColor': '#002200',
-        'color': '#00ff00'
+        'backgroundColor': '#ffffff',
+        'color': '#ffffff'
     })
 
 # Callback to display column statistics
@@ -321,8 +373,8 @@ def display_column_stats(selected_column, data):
     }
     stats_df = pd.DataFrame(list(stats.items()), columns=['Statistic', 'Value'])
     return dbc.Table.from_dataframe(stats_df, striped=True, bordered=True, hover=True, style={
-        'backgroundColor': '#002200',
-        'color': '#00ff00'
+        'backgroundColor': '#ffffff',
+        'color': '#ffffff'
     })
 
 # Callback to handle comments
@@ -340,15 +392,92 @@ def add_and_display_comments(n_clicks, name, comment):
     comments = get_comments()
     comments_list = [
         dbc.Card([
-            dbc.CardHeader(comment[0], style={'color': '#00ff00'}),
-            dbc.CardBody(comment[1], style={'color': '#00ff00'}),
-            dbc.CardFooter(comment[2], style={'color': '#00ff00'})
-        ], style={'backgroundColor': '#002200', 'marginBottom': '10px'})
+            dbc.CardHeader(comment[0], style={'color': '#ffffff'}),
+            dbc.CardBody(comment[1], style={'color': '#ffffff'}),
+            dbc.CardFooter(comment[2], style={'color': '#ffffff'})
+        ], style={'backgroundColor': '#ffffff', 'marginBottom': '10px'})
         for comment in comments
     ]
     return comments_list
 
+# Callback to update ML algorithm options based on the selected task
+@app.callback(
+    Output('ml-algorithm', 'options'),
+    Input('ml-task', 'value')
+)
+def update_ml_algorithms(selected_task):
+    if selected_task == 'classification':
+        return [
+            {'label': 'Logistic Regression', 'value': 'logistic_regression'},
+            {'label': 'Random Forest Classifier', 'value': 'random_forest_classifier'}
+        ]
+    elif selected_task == 'regression':
+        return [
+            {'label': 'Linear Regression', 'value': 'linear_regression'},
+            {'label': 'Random Forest Regressor', 'value': 'random_forest_regressor'}
+        ]
+    elif selected_task == 'clustering':
+        return [
+            {'label': 'K-Means', 'value': 'kmeans'}
+        ]
+    return []
+
+# Callback to run the selected ML model
+@app.callback(
+    Output('ml-results', 'children'),
+    Input('run-model', 'n_clicks'),
+    State('ml-task', 'value'),
+    State('ml-algorithm', 'value'),
+    State('data-table', 'data'),
+    prevent_initial_call=True
+)
+def run_ml_model(n_clicks, task, algorithm, data):
+    if not task or not algorithm or not data:
+        return "Please select a task and algorithm."
+
+    df = pd.DataFrame(data)
+
+    if task == 'classification':
+        X = df.iloc[:, :-1]  # Features (all columns except the last)
+        y = df.iloc[:, -1]   # Target (last column)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+        if algorithm == 'logistic_regression':
+            model = LogisticRegression()
+        elif algorithm == 'random_forest_classifier':
+            model = RandomForestClassifier()
+
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        accuracy = accuracy_score(y_test, y_pred)
+        return f"Accuracy: {accuracy:.2f}"
+
+    elif task == 'regression':
+        X = df.iloc[:, :-1]  # Features (all columns except the last)
+        y = df.iloc[:, -1]   # Target (last column)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+        if algorithm == 'linear_regression':
+            model = LinearRegression()
+        elif algorithm == 'random_forest_regressor':
+            model = RandomForestRegressor()
+
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        mse = mean_squared_error(y_test, y_pred)
+        return f"Mean Squared Error: {mse:.2f}"
+
+    elif task == 'clustering':
+        if algorithm == 'kmeans':
+            X = df.iloc[:, :-1]  # Features (all columns except the last)
+            model = KMeans(n_clusters=3)
+            model.fit(X)
+            silhouette = silhouette_score(X, model.labels_)
+            return f"Silhouette Score: {silhouette:.2f}"
+
+    return "Invalid task or algorithm."
+
 # Run the app
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8050))  # Use Render's PORT environment variable
+    port = int(os.environ.get('PORT', 6050))  # Use Render's PORT environment variable
     app.run_server(host='0.0.0.0', port=port, debug=False)
