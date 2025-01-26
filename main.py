@@ -214,7 +214,7 @@ app.layout = dbc.Container([
         # Footer
     dbc.Row([
         dbc.Col([
-            html.Div("Made by Krish Gaur", style={
+            html.Div("Made by Krish Gaur❤️", style={
                 'textAlign': 'center',
                 'color': '#ffffff',
                 'fontFamily': 'Courier New, monospace',
