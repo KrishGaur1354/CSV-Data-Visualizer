@@ -25,8 +25,6 @@ init_db()
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
 app.title = "CSV Data Visualizer"
 
-# Custom Unix/Linux terminal style
-# Custom Unix/Linux terminal style with transparency
 terminal_style = {
     'backgroundColor': '#000000',
     'color': '#ffffff',
@@ -159,18 +157,18 @@ app.layout = dbc.Container([
     # Please contribute to this section by adding more statistics
     # and visualizations for the selected column
 
-    # dbc.Row([
-    #     dbc.Col([
-    #         html.H3("Column Statistics", style={'color': '#ffffff'}),
-    #         dcc.Dropdown(
-    #             id='column-selector',
-    #             options=[],
-    #             placeholder="Select a column",
-    #             style={'backgroundColor': 'rgba(255, 255, 255, 0.8)', 'color': '#000000'}
-    #         ),
-    #         html.Div(id='column-stats')
-    #     ])
-    # ]),
+    dbc.Row([
+        dbc.Col([
+            html.H3("Column Statistics", style={'color': '#ffffff'}),
+            dcc.Dropdown(
+                id='column-selector',
+                options=[],
+                placeholder="Select a column",
+                style={'backgroundColor': 'rgba(255, 255, 255, 0.8)', 'color': '#000000'}
+            ),
+            html.Div(id='column-stats')
+        ])
+    ]),
 
     # Machine Learning Section
     dbc.Row([
