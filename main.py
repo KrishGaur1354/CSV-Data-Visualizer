@@ -13,6 +13,10 @@ from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.cluster import KMeans
 from sklearn.metrics import accuracy_score, mean_squared_error, silhouette_score
 from database import init_db, add_comment, get_comments
+import nltk
+nltk.download('punkt')
+from textblob import TextBlob
+# from sentiment_analysis import analyze_sentiment 
 
 # Initialize the database
 init_db()
@@ -150,19 +154,24 @@ app.layout = dbc.Container([
             html.Div(id='stat-summary')
         ])
     ]),
-    # Column Statistics
-    dbc.Row([
-        dbc.Col([
-            html.H3("Column Statistics", style={'color': '#ffffff'}),
-            dcc.Dropdown(
-                id='column-selector',
-                options=[],
-                placeholder="Select a column",
-                style={'backgroundColor': 'rgba(255, 255, 255, 0.8)', 'color': '#000000'}
-            ),
-            html.Div(id='column-stats')
-        ])
-    ]),
+    # Column Statistics 
+    # Uncomment this section to enable column statistics
+    # Please contribute to this section by adding more statistics
+    # and visualizations for the selected column
+
+    # dbc.Row([
+    #     dbc.Col([
+    #         html.H3("Column Statistics", style={'color': '#ffffff'}),
+    #         dcc.Dropdown(
+    #             id='column-selector',
+    #             options=[],
+    #             placeholder="Select a column",
+    #             style={'backgroundColor': 'rgba(255, 255, 255, 0.8)', 'color': '#000000'}
+    #         ),
+    #         html.Div(id='column-stats')
+    #     ])
+    # ]),
+
     # Machine Learning Section
     dbc.Row([
         dbc.Col([
@@ -377,7 +386,8 @@ def display_column_stats(selected_column, data):
         'color': '#ffffff'
     })
 
-# Callback to handle comments
+from textblob import TextBlob
+
 @app.callback(
     Output('comments-display', 'children'),
     Input('submit-comment', 'n_clicks'),
@@ -386,19 +396,47 @@ def display_column_stats(selected_column, data):
     prevent_initial_call=True
 )
 def add_and_display_comments(n_clicks, name, comment):
-    if not name or not comment:
-        return "Please enter both your name and comment."
-    add_comment(name, comment)
-    comments = get_comments()
-    comments_list = [
-        dbc.Card([
-            dbc.CardHeader(comment[0], style={'color': '#ffffff'}),
-            dbc.CardBody(comment[1], style={'color': '#ffffff'}),
-            dbc.CardFooter(comment[2], style={'color': '#ffffff'})
-        ], style={'backgroundColor': '#ffffff', 'marginBottom': '10px'})
-        for comment in comments
-    ]
-    return comments_list
+    try:
+        if not name or not comment:
+            return "Please enter both your name and comment."
+
+        # Analyze sentiment using TextBlob
+        sentiment = TextBlob(comment).sentiment.polarity
+        if sentiment > 0:
+            reply = "Thank you for your positive feedback! We're glad you enjoyed your experience."
+        elif sentiment < 0:
+            reply = "We're sorry to hear about your experience. We'll work to improve."
+        else:
+            reply = "Thank you for your feedback!"
+
+        # Add the comment to the database
+        add_comment(name, comment)
+
+        # Fetch all comments
+        comments = get_comments()
+
+        # Display comments along with the sentiment-based reply
+        comments_list = [
+            dbc.Card([
+                dbc.CardHeader(comment[0], style={'color': '#ffffff'}),
+                dbc.CardBody(comment[1], style={'color': '#ffffff'}),
+                dbc.CardFooter(f"Sentiment: {comment[2]} | {comment[3]}", style={'color': '#000000'})
+            ], style={'backgroundColor': '#ffffff', 'marginBottom': '10px'})
+            for comment in comments
+        ]
+
+        # Add the sentiment-based reply to the comments list
+        comments_list.insert(0, dbc.Card([
+            dbc.CardHeader("Single Support Individual", style={'color': '#ffffff'}),
+            dbc.CardBody(reply, style={'color': '#000000'}),
+        ], style={'backgroundColor': '#ffffff', 'marginBottom': '10px'}))
+
+        return comments_list
+
+    except Exception as e:
+        # Log the error for debugging
+        print(f"Error in add_and_display_comments: {e}")
+        return f"An error occurred: {str(e)}"
 
 # Callback to update ML algorithm options based on the selected task
 @app.callback(
