@@ -27,8 +27,6 @@ init_db()
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
 app.title = "CSV Data Visualizer"
 
-# Custom Unix/Linux terminal style
-# Custom Unix/Linux terminal style with transparency
 terminal_style = {
     'backgroundColor': '#000000',
     'color': '#ffffff',
