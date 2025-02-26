@@ -12,11 +12,13 @@ from sklearn.linear_model import LogisticRegression, LinearRegression
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.cluster import KMeans
 from sklearn.metrics import accuracy_score, mean_squared_error, silhouette_score
-from database import init_db, add_comment, get_comments
 import nltk
 nltk.download('punkt')
 from textblob import TextBlob
-# from sentiment_analysis import analyze_sentiment 
+from dash import html, dcc, Input, Output, State
+import dash_bootstrap_components as dbc
+from textblob import TextBlob
+from database import init_db, add_comment, get_comments, edit_comment
 
 # Initialize the database
 init_db()
@@ -159,18 +161,18 @@ app.layout = dbc.Container([
     # Please contribute to this section by adding more statistics
     # and visualizations for the selected column
 
-    # dbc.Row([
-    #     dbc.Col([
-    #         html.H3("Column Statistics", style={'color': '#ffffff'}),
-    #         dcc.Dropdown(
-    #             id='column-selector',
-    #             options=[],
-    #             placeholder="Select a column",
-    #             style={'backgroundColor': 'rgba(255, 255, 255, 0.8)', 'color': '#000000'}
-    #         ),
-    #         html.Div(id='column-stats')
-    #     ])
-    # ]),
+    dbc.Row([
+        dbc.Col([
+            html.H3("Column Statistics", style={'color': '#ffffff'}),
+            dcc.Dropdown(
+                id='column-selector',
+                options=[],
+                placeholder="Select a column",
+                style={'backgroundColor': 'rgba(255, 255, 255, 0.8)', 'color': '#000000'}
+            ),
+            html.Div(id='column-stats')
+        ])
+    ]),
 
     # Machine Learning Section
     dbc.Row([
@@ -218,6 +220,24 @@ app.layout = dbc.Container([
                 'textShadow': '0 0 5px #ffffff'
             }),
             html.Div(id='comments-display')
+        ])
+    ]),
+
+    # Edit Comment Section
+    dbc.Row([
+        dbc.Col([
+            html.H3("Edit Comment", style={'color': '#ffffff'}),
+            dbc.Input(id='edit-comment-id', placeholder="Comment ID", style={'backgroundColor': 'rgba(255, 255, 255, 0.8)', 'color': '#000000'}),
+            dbc.Textarea(id='edit-comment-text', placeholder="New Comment", style={'backgroundColor': 'rgba(255, 255, 255, 0.8)', 'color': '#000000'}),
+            html.Button("Edit", id='edit-comment-button', style={
+                'backgroundColor': 'rgba(255, 255, 255, 0.8)',
+                'color': '#000000',
+                'border': 'none',
+                'padding': '10px 20px',
+                'fontFamily': 'Courier New, monospace',
+                'textShadow': '0 0 5px #ffffff'
+            }),
+            html.Div(id='edit-comment-status')
         ])
     ]),
         # Footer
@@ -388,6 +408,7 @@ def display_column_stats(selected_column, data):
 
 from textblob import TextBlob
 
+# Callback to handle comments
 @app.callback(
     Output('comments-display', 'children'),
     Input('submit-comment', 'n_clicks'),
@@ -400,15 +421,6 @@ def add_and_display_comments(n_clicks, name, comment):
         if not name or not comment:
             return "Please enter both your name and comment."
 
-        # Analyze sentiment using TextBlob
-        sentiment = TextBlob(comment).sentiment.polarity
-        if sentiment > 0:
-            reply = "Thank you for your positive feedback! We're glad you enjoyed your experience."
-        elif sentiment < 0:
-            reply = "We're sorry to hear about your experience. We'll work to improve."
-        else:
-            reply = "Thank you for your feedback!"
-
         # Add the comment to the database
         add_comment(name, comment)
 
@@ -416,26 +428,50 @@ def add_and_display_comments(n_clicks, name, comment):
         comments = get_comments()
 
         # Display comments along with the sentiment-based reply
-        comments_list = [
-            dbc.Card([
-                dbc.CardHeader(comment[0], style={'color': '#ffffff'}),
-                dbc.CardBody(comment[1], style={'color': '#ffffff'}),
-                dbc.CardFooter(f"Sentiment: {comment[2]} | {comment[3]}", style={'color': '#000000'})
-            ], style={'backgroundColor': '#ffffff', 'marginBottom': '10px'})
-            for comment in comments
-        ]
+        comments_list = []
+        for comment in comments:
+            comment_id, name, text, sentiment, timestamp = comment
+            sentiment_reply = "Thank you for your feedback!" if sentiment == "neutral" else (
+                "Thank you for your positive feedback!" if sentiment == "positive" else
+                "We're sorry to hear about your experience. We'll work to improve."
+            )
 
-        # Add the sentiment-based reply to the comments list
-        comments_list.insert(0, dbc.Card([
-            dbc.CardHeader("Single Support Individual", style={'color': '#ffffff'}),
-            dbc.CardBody(reply, style={'color': '#000000'}),
-        ], style={'backgroundColor': '#ffffff', 'marginBottom': '10px'}))
+            comments_list.append(dbc.Card([
+                dbc.CardHeader(name, style={'color': '#ffffff'}),
+                dbc.CardBody(text, style={'color': '#ffffff'}),
+                dbc.CardFooter([
+                    html.P(f"Sentiment: {sentiment}", style={'color': '#ffffff'}),
+                    html.P(f"Timestamp: {timestamp}", style={'color': '#ffffff'}),
+                    html.P(sentiment_reply, style={'color': '#ffffff'})
+                ])
+            ], style={'backgroundColor': '#ffffff', 'marginBottom': '10px'}))
 
         return comments_list
 
     except Exception as e:
-        # Log the error for debugging
         print(f"Error in add_and_display_comments: {e}")
+        return f"An error occurred: {str(e)}"
+
+# Callback to handle editing comments
+@app.callback(
+    Output('edit-comment-status', 'children'),
+    Input('edit-comment-button', 'n_clicks'),
+    State('edit-comment-id', 'value'),
+    State('edit-comment-text', 'value'),
+    prevent_initial_call=True
+)
+def edit_comment_callback(n_clicks, comment_id, new_comment):
+    try:
+        if not comment_id or not new_comment:
+            return "Please enter a comment ID and new comment."
+
+        # Edit the comment in the database
+        edit_comment(comment_id, new_comment)
+
+        return f"Comment {comment_id} updated successfully."
+
+    except Exception as e:
+        print(f"Error in edit_comment_callback: {e}")
         return f"An error occurred: {str(e)}"
 
 # Callback to update ML algorithm options based on the selected task

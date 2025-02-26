@@ -25,28 +25,31 @@ def analyze_sentiment(comment):
     else:
         return "neutral"
 
+# Add a comment to the database
 def add_comment(name, comment):
-    try:
-        sentiment = analyze_sentiment(comment)
-        conn = sqlite3.connect('comments.db')
-        c = conn.cursor()
-        c.execute("INSERT INTO comments (name, comment, sentiment) VALUES (?, ?, ?)", 
-                  (name, comment, sentiment))
-        conn.commit()
-    except Exception as e:
-        print(f"Error adding comment: {e}")
-    finally:
-        conn.close()
+    sentiment = analyze_sentiment(comment)
+    conn = sqlite3.connect('comments.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO comments (name, comment, sentiment) VALUES (?, ?, ?)", 
+              (name, comment, sentiment))
+    conn.commit()
+    conn.close()
 
+# Fetch all comments from the database
 def get_comments():
-    try:
-        conn = sqlite3.connect('comments.db')
-        c = conn.cursor()
-        c.execute("SELECT name, comment, sentiment, timestamp FROM comments ORDER BY timestamp DESC")
-        comments = c.fetchall()
-        return comments
-    except Exception as e:
-        print(f"Error fetching comments: {e}")
-        return []
-    finally:
-        conn.close()
+    conn = sqlite3.connect('comments.db')
+    c = conn.cursor()
+    c.execute("SELECT id, name, comment, sentiment, timestamp FROM comments ORDER BY timestamp DESC")
+    comments = c.fetchall()
+    conn.close()
+    return comments
+
+# Edit a comment in the database
+def edit_comment(comment_id, new_comment):
+    sentiment = analyze_sentiment(new_comment)
+    conn = sqlite3.connect('comments.db')
+    c = conn.cursor()
+    c.execute("UPDATE comments SET comment = ?, sentiment = ? WHERE id = ?", 
+              (new_comment, sentiment, comment_id))
+    conn.commit()
+    conn.close()
